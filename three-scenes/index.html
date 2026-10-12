@@ -114,18 +114,38 @@ body {
 (() => {
  const fetchFile=window.fetch.bind(window);
  const base=new URL('.',location.href);
- const chunks=["index.pack-0.bin","index.pack-1.bin","index.pack-2.bin"];
+ const chunks=["index.pack-fae691ca65d1-0.bin","index.pack-fae691ca65d1-1.bin","index.pack-fae691ca65d1-2.bin","index.pack-fae691ca65d1-3.bin","index.pack-fae691ca65d1-4.bin","index.pack-fae691ca65d1-5.bin","index.pack-fae691ca65d1-6.bin","index.pack-fae691ca65d1-7.bin","index.pack-fae691ca65d1-8.bin","index.pack-fae691ca65d1-9.bin","index.pack-fae691ca65d1-10.bin","index.pack-fae691ca65d1-11.bin","index.pack-fae691ca65d1-12.bin","index.pack-fae691ca65d1-13.bin","index.pack-fae691ca65d1-14.bin","index.pack-fae691ca65d1-15.bin","index.pack-fae691ca65d1-16.bin","index.pack-fae691ca65d1-17.bin","index.pack-fae691ca65d1-18.bin","index.pack-fae691ca65d1-19.bin","index.pack-fae691ca65d1-20.bin","index.pack-fae691ca65d1-21.bin","index.pack-fae691ca65d1-22.bin","index.pack-fae691ca65d1-23.bin","index.pack-fae691ca65d1-24.bin","index.pack-fae691ca65d1-25.bin","index.pack-fae691ca65d1-26.bin","index.pack-fae691ca65d1-27.bin","index.pack-fae691ca65d1-28.bin","index.pack-fae691ca65d1-29.bin"];
  let pack;
  window.fetch=async function(input,options){
   const url=new URL(typeof input==='string'?input:input.url,base);
   if(url.href!==new URL('index.pck',base).href)return fetchFile(input,options);
   const headers={'Content-Type':'application/octet-stream','Content-Length':'122180336'};
   if((options?.method||input?.method)==='HEAD')return new Response(null,{status:200,headers});
-  if(!pack)pack=Promise.all(chunks.map(async name=>{
-   const response=await fetchFile(new URL(name,base));
-   if(!response.ok)throw new Error('Game download failed: '+response.status);
-   return await response.blob();
-  })).then(parts=>new Blob(parts,{type:'application/octet-stream'}));
+  if(!pack)pack=(async()=>{
+   const parts=new Array(chunks.length);
+   let next=0,finished=0;
+   async function worker(){
+    while(next<chunks.length){
+     const index=next++;
+     for(let attempt=0;attempt<4;attempt++){
+      try{
+       const response=await fetchFile(new URL(chunks[index],base));
+       if(!response.ok)throw new Error('Game download failed: '+response.status);
+       parts[index]=await response.blob();
+       break;
+      }catch(error){
+       if(attempt===3)throw error;
+       await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));
+      }
+     }
+     finished++;
+     const progress=document.getElementById('status-progress');
+     if(progress){progress.max=chunks.length;progress.value=finished;}
+    }
+   }
+   await Promise.all([worker(),worker()]);
+   return new Blob(parts,{type:'application/octet-stream'});
+  })();
   return new Response(await pack,{status:200,headers});
  };
 })();
